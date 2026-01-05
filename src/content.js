@@ -1,8 +1,26 @@
-// Instagram Video Enhancer - Content Script
+// Bearable Desktop Instagram - Content Script
 // Adds custom video controls and timestamp persistence for comment navigation
 
 (function() {
   'use strict';
+
+  // ============================================================
+  // CONFIGURATION
+  // ============================================================
+  const CONFIG = {
+    DEBUG: false,                    // Set to true to enable console logging
+    SEEK_SECONDS: 10,                // Seconds to skip with arrow keys
+    SEEK_END_BUFFER: 0.5,            // Buffer from end when restoring timestamp
+    CONTAINER_SEARCH_MAX_DEPTH: 10,  // Max parent levels to search for video container
+    SCAN_DEBOUNCE_MS: 100,           // Debounce delay for video scanning
+    NAVIGATION_SCAN_DELAY_MS: 500,   // Delay before scanning after navigation
+  };
+
+  function debug(...args) {
+    if (CONFIG.DEBUG) {
+      console.log('[IG Enhancer]', ...args);
+    }
+  }
 
   // ============================================================
   // TIMESTAMP STORE - Persists video position for comment navigation
@@ -20,7 +38,7 @@
           // Fallback if session storage unavailable
           sessionStorage.setItem(`ig_ts_${postId}`, currentTime.toString());
         }
-        console.log('[IG Enhancer] Saved timestamp for', postId, ':', currentTime);
+        debug('Saved timestamp for', postId, ':', currentTime);
       }
     },
 
@@ -31,7 +49,7 @@
       if (this.timestamps.has(postId)) {
         const time = this.timestamps.get(postId);
         this.timestamps.delete(postId);
-        console.log('[IG Enhancer] Restored timestamp for', postId, ':', time);
+        debug('Restored timestamp for', postId, ':', time);
         return time;
       }
 
@@ -40,7 +58,7 @@
         const result = await chrome.storage.session.get(`ts_${postId}`);
         if (result[`ts_${postId}`]) {
           chrome.storage.session.remove(`ts_${postId}`);
-          console.log('[IG Enhancer] Restored timestamp from storage for', postId, ':', result[`ts_${postId}`]);
+          debug('Restored timestamp from storage for', postId, ':', result[`ts_${postId}`]);
           return result[`ts_${postId}`];
         }
       } catch (e) {
@@ -150,42 +168,22 @@
   }
 
   function getVideoContainer(video) {
-    // Find the appropriate container to attach controls to
-    let container = video.parentElement;
-    let iterations = 0;
-    const maxIterations = 10;
-
-    while (container && iterations < maxIterations) {
-      const style = window.getComputedStyle(container);
-      const hasSize = container.offsetWidth > 100 && container.offsetHeight > 100;
-      const isPositioned = style.position !== 'static';
-
-      if (hasSize && (isPositioned || container.tagName === 'DIV')) {
-        // Check if this container is suitable
-        const rect = container.getBoundingClientRect();
-        const videoRect = video.getBoundingClientRect();
-
-        // Container should roughly match video size
-        if (Math.abs(rect.width - videoRect.width) < 50 &&
-            Math.abs(rect.height - videoRect.height) < 100) {
-          break;
-        }
-      }
-
-      container = container.parentElement;
-      iterations++;
+    // Check if we already wrapped this video
+    if (video.parentElement?.classList.contains('ig-enhancer-wrapper')) {
+      return video.parentElement;
     }
 
-    // Ensure container has relative positioning for overlay
-    if (container && container !== document.body) {
-      const style = window.getComputedStyle(container);
-      if (style.position === 'static') {
-        container.style.position = 'relative';
-      }
-      return container;
-    }
+    // Create our own wrapper to avoid mutating Instagram's DOM
+    const wrapper = document.createElement('div');
+    wrapper.className = 'ig-enhancer-wrapper';
+    wrapper.style.cssText = 'position: relative; width: 100%; height: 100%;';
 
-    return video.parentElement;
+    // Insert wrapper around video
+    video.parentElement.insertBefore(wrapper, video);
+    wrapper.appendChild(video);
+
+    debug('Wrapped video in container');
+    return wrapper;
   }
 
   // ============================================================
@@ -248,6 +246,10 @@
     const volumeInput = overlay.querySelector('.ig-enhancer-volume');
     const speedSelect = overlay.querySelector('.ig-enhancer-speed');
 
+    // AbortController for cleanup of all event listeners
+    const abortController = new AbortController();
+    const { signal } = abortController;
+
     let isDragging = false;
 
     // Update play/pause button state
@@ -277,13 +279,13 @@
       volumeInput.value = video.muted ? 0 : video.volume;
     }
 
-    // Event listeners for video
-    video.addEventListener('play', updatePlayState);
-    video.addEventListener('pause', updatePlayState);
-    video.addEventListener('timeupdate', updateProgress);
-    video.addEventListener('loadedmetadata', updateDuration);
-    video.addEventListener('durationchange', updateDuration);
-    video.addEventListener('volumechange', updateVolumeState);
+    // Event listeners for video (with signal for cleanup)
+    video.addEventListener('play', updatePlayState, { signal });
+    video.addEventListener('pause', updatePlayState, { signal });
+    video.addEventListener('timeupdate', updateProgress, { signal });
+    video.addEventListener('loadedmetadata', updateDuration, { signal });
+    video.addEventListener('durationchange', updateDuration, { signal });
+    video.addEventListener('volumechange', updateVolumeState, { signal });
 
     // Play/pause button
     playBtn.addEventListener('click', (e) => {
@@ -294,7 +296,7 @@
       } else {
         video.pause();
       }
-    });
+    }, { signal });
 
     // Progress bar
     progressInput.addEventListener('input', (e) => {
@@ -302,21 +304,21 @@
       const percent = parseFloat(e.target.value);
       progressFilled.style.width = `${percent}%`;
       currentTimeEl.textContent = formatTime((percent / 100) * video.duration);
-    });
+    }, { signal });
 
     progressInput.addEventListener('change', (e) => {
       const percent = parseFloat(e.target.value);
       video.currentTime = (percent / 100) * video.duration;
       isDragging = false;
-    });
+    }, { signal });
 
     progressInput.addEventListener('mousedown', () => {
       isDragging = true;
-    });
+    }, { signal });
 
     progressInput.addEventListener('mouseup', () => {
       isDragging = false;
-    });
+    }, { signal });
 
     // Mute button
     muteBtn.addEventListener('click', (e) => {
@@ -324,7 +326,7 @@
       e.stopPropagation();
       video.muted = !video.muted;
       Preferences.muted = video.muted;
-    });
+    }, { signal });
 
     // Volume slider
     volumeInput.addEventListener('input', (e) => {
@@ -332,22 +334,25 @@
       video.muted = video.volume === 0;
       Preferences.volume = video.volume;
       Preferences.muted = video.muted;
-    });
+    }, { signal });
 
     // Speed selector
     speedSelect.addEventListener('change', (e) => {
       video.playbackRate = parseFloat(e.target.value);
-    });
+    }, { signal });
 
     // Prevent clicks from propagating to Instagram's handlers
     overlay.addEventListener('click', (e) => {
       e.stopPropagation();
-    });
+    }, { signal });
 
     // Initial state
     updatePlayState();
     updateVolumeState();
     if (video.duration) updateDuration();
+
+    // Attach abort controller to overlay for cleanup
+    overlay._abortController = abortController;
 
     return overlay;
   }
@@ -383,10 +388,10 @@
           // Wait for video to be ready
           const seekToSaved = () => {
             if (video.readyState >= 1 && video.duration) {
-              video.currentTime = Math.min(savedTime, video.duration - 0.5);
+              video.currentTime = Math.min(savedTime, video.duration - CONFIG.SEEK_END_BUFFER);
             } else {
               video.addEventListener('loadedmetadata', () => {
-                video.currentTime = Math.min(savedTime, video.duration - 0.5);
+                video.currentTime = Math.min(savedTime, video.duration - CONFIG.SEEK_END_BUFFER);
               }, { once: true });
             }
           };
@@ -397,8 +402,19 @@
 
     // Store cleanup function
     video._igEnhancerCleanup = () => {
+      // Abort all event listeners
+      if (controls._abortController) {
+        controls._abortController.abort();
+      }
+      // Remove controls
       if (controls.parentNode) {
         controls.parentNode.removeChild(controls);
+      }
+      // Unwrap video from our wrapper
+      const wrapper = video.parentElement;
+      if (wrapper?.classList.contains('ig-enhancer-wrapper')) {
+        wrapper.parentElement.insertBefore(video, wrapper);
+        wrapper.remove();
       }
     };
   }
@@ -409,37 +425,19 @@
   }
 
   // ============================================================
-  // COMMENT CLICK HANDLER - Saves timestamp before navigation
+  // TIMESTAMP SAVING - Only save on actual navigation events
   // ============================================================
 
-  function handlePotentialNavigation(event) {
-    const target = event.target;
+  // Debounce to avoid multiple saves
+  let saveDebounceTimer = null;
 
-    // Check if clicking on a link that goes to a post
-    const link = target.closest('a[href*="/p/"], a[href*="/reel/"]');
-
-    // Check for comment-related elements (various ways Instagram marks them)
-    const isCommentClick = target.closest('[aria-label*="Comment" i], [aria-label*="comment" i], svg');
-
-    // Check for any interactive element in the post that might open a modal
-    const isInteractiveClick = target.closest('article button, article svg, article [role="button"]');
-
-    if (!link && !isCommentClick && !isInteractiveClick) return;
-
-    // Find any playing videos in the viewport and save their timestamps
-    const videos = document.querySelectorAll('video');
-    videos.forEach(video => {
-      if (!video.paused && video.currentTime > 0) {
-        const postId = getPostId(video);
-        if (postId) {
-          TimestampStore.save(postId, video.currentTime);
-        }
-      }
-    });
-  }
-
-  // Also save timestamps before any navigation
   function saveAllVideoTimestamps() {
+    // Debounce rapid calls
+    if (saveDebounceTimer) return;
+    saveDebounceTimer = setTimeout(() => {
+      saveDebounceTimer = null;
+    }, 500);
+
     const videos = document.querySelectorAll('video');
     videos.forEach(video => {
       if (video.currentTime > 0) {
@@ -451,6 +449,14 @@
     });
   }
 
+  function handleLinkClick(event) {
+    // Only save timestamps when clicking a link that navigates to a post
+    const link = event.target.closest('a[href*="/p/"], a[href*="/reel/"]');
+    if (link) {
+      saveAllVideoTimestamps();
+    }
+  }
+
   // ============================================================
   // INITIALIZATION
   // ============================================================
@@ -459,10 +465,18 @@
     // Initial scan
     scanForVideos();
 
-    // Watch for new videos
+    // Single MutationObserver for both video detection and URL changes
+    let lastUrl = location.href;
     const observer = new MutationObserver((mutations) => {
-      let shouldScan = false;
+      // Check for URL change (SPA navigation)
+      if (location.href !== lastUrl) {
+        lastUrl = location.href;
+        setTimeout(scanForVideos, CONFIG.NAVIGATION_SCAN_DELAY_MS);
+        return; // URL change will trigger a full scan, skip video detection
+      }
 
+      // Check for new video elements
+      let shouldScan = false;
       for (const mutation of mutations) {
         if (mutation.addedNodes.length > 0) {
           for (const node of mutation.addedNodes) {
@@ -480,7 +494,7 @@
       if (shouldScan) {
         // Debounce the scan
         clearTimeout(observer._scanTimeout);
-        observer._scanTimeout = setTimeout(scanForVideos, 100);
+        observer._scanTimeout = setTimeout(scanForVideos, CONFIG.SCAN_DEBOUNCE_MS);
       }
     });
 
@@ -489,28 +503,13 @@
       subtree: true
     });
 
-    // Listen for clicks that might navigate to a post
-    document.addEventListener('click', handlePotentialNavigation, true);
-
-    // Handle SPA navigation
-    let lastUrl = location.href;
-    const urlObserver = new MutationObserver(() => {
-      if (location.href !== lastUrl) {
-        lastUrl = location.href;
-        // Re-scan after navigation
-        setTimeout(scanForVideos, 500);
-      }
-    });
-
-    urlObserver.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
+    // Listen for link clicks that navigate to a post
+    document.addEventListener('click', handleLinkClick, true);
 
     // Also listen to popstate for back/forward navigation
     window.addEventListener('popstate', () => {
       saveAllVideoTimestamps();
-      setTimeout(scanForVideos, 500);
+      setTimeout(scanForVideos, CONFIG.NAVIGATION_SCAN_DELAY_MS);
     });
 
     // Save timestamps before page unload
@@ -551,7 +550,7 @@
 
         if (activeVideo && activeVideo.duration) {
           e.preventDefault();
-          const skip = e.key === 'ArrowRight' ? 10 : -10;
+          const skip = e.key === 'ArrowRight' ? CONFIG.SEEK_SECONDS : -CONFIG.SEEK_SECONDS;
           activeVideo.currentTime = Math.max(0, Math.min(activeVideo.duration, activeVideo.currentTime + skip));
         }
       }
