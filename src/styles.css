@@ -1,0 +1,287 @@
+/* Instagram Video Enhancer - Controls Styling */
+
+.ig-enhancer-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 60px; /* Leave space for Instagram's mute button */
+  z-index: 9999;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.ig-enhancer-controls-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Play/Pause Button */
+.ig-enhancer-play-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.9;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.ig-enhancer-play-btn:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.ig-enhancer-play-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.ig-enhancer-play-btn .pause-icon {
+  display: none;
+}
+
+.ig-enhancer-controls.is-playing .ig-enhancer-play-btn .play-icon {
+  display: none;
+}
+
+.ig-enhancer-controls.is-playing .ig-enhancer-play-btn .pause-icon {
+  display: block;
+}
+
+/* Time Display */
+.ig-enhancer-time {
+  color: white;
+  font-size: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 500;
+  min-width: 36px;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
+}
+
+/* Progress Bar Container */
+.ig-enhancer-progress-container {
+  flex: 1;
+  position: relative;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.ig-enhancer-progress {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+  margin: 0;
+}
+
+.ig-enhancer-progress-bar {
+  position: absolute;
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  overflow: hidden;
+  transition: height 0.15s ease;
+}
+
+.ig-enhancer-progress-container:hover .ig-enhancer-progress-bar {
+  height: 12px;
+}
+
+.ig-enhancer-progress-filled {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #e1306c, #fd1d1d);
+  border-radius: 2px;
+  transition: width 0.1s linear;
+}
+
+.ig-enhancer-progress-buffered {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+/* Volume Controls */
+.ig-enhancer-volume-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.ig-enhancer-mute-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.9;
+  transition: opacity 0.15s ease;
+}
+
+.ig-enhancer-mute-btn:hover {
+  opacity: 1;
+}
+
+.ig-enhancer-mute-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.ig-enhancer-mute-btn .muted-icon {
+  display: none;
+}
+
+.ig-enhancer-controls.is-muted .ig-enhancer-mute-btn .volume-icon {
+  display: none;
+}
+
+.ig-enhancer-controls.is-muted .ig-enhancer-mute-btn .muted-icon {
+  display: block;
+}
+
+.ig-enhancer-volume {
+  width: 60px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: width 0.15s ease;
+}
+
+.ig-enhancer-volume-container:hover .ig-enhancer-volume {
+  width: 80px;
+}
+
+.ig-enhancer-volume::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s ease;
+}
+
+.ig-enhancer-volume::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.ig-enhancer-volume::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.ig-enhancer-volume::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+}
+
+.ig-enhancer-volume::-moz-range-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+}
+
+/* Speed Selector */
+.ig-enhancer-speed-container {
+  flex-shrink: 0;
+}
+
+.ig-enhancer-speed {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  color: white;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 6px;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.ig-enhancer-speed:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.ig-enhancer-speed option {
+  background: #1a1a1a;
+  color: white;
+}
+
+/* Responsive adjustments for smaller videos */
+@media (max-width: 500px) {
+  .ig-enhancer-controls-inner {
+    gap: 6px;
+    padding: 6px 8px;
+  }
+
+  .ig-enhancer-play-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .ig-enhancer-time {
+    font-size: 11px;
+    min-width: 30px;
+  }
+
+  .ig-enhancer-volume {
+    width: 40px;
+  }
+
+  .ig-enhancer-volume-container:hover .ig-enhancer-volume {
+    width: 60px;
+  }
+
+  .ig-enhancer-mute-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* Hide controls when video is in a very small container */
+@container (max-width: 200px) {
+  .ig-enhancer-volume-container,
+  .ig-enhancer-speed-container {
+    display: none;
+  }
+}

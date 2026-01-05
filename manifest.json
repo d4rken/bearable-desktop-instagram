@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Bearable Desktop Instagram",
+  "version": "1.0.0",
+  "description": "Adds video controls and improves comment navigation on Instagram",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["*://*.instagram.com/*"],
+      "js": ["src/content.js"],
+      "css": ["src/styles.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
