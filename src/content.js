@@ -382,15 +382,20 @@
 
     // Check for saved timestamp
     const postId = getPostId(video);
+    debug('Enhancing video, postId:', postId);
     if (postId) {
       TimestampStore.get(postId).then(savedTime => {
+        debug('Retrieved saved time for', postId, ':', savedTime);
         if (savedTime && savedTime > 0) {
           // Wait for video to be ready
           const seekToSaved = () => {
             if (video.readyState >= 1 && video.duration) {
+              debug('Seeking to saved time:', savedTime);
               video.currentTime = Math.min(savedTime, video.duration - CONFIG.SEEK_END_BUFFER);
             } else {
+              debug('Video not ready, waiting for loadedmetadata');
               video.addEventListener('loadedmetadata', () => {
+                debug('Metadata loaded, seeking to:', savedTime);
                 video.currentTime = Math.min(savedTime, video.duration - CONFIG.SEEK_END_BUFFER);
               }, { once: true });
             }
@@ -450,10 +455,29 @@
   }
 
   function handleLinkClick(event) {
-    // Only save timestamps when clicking a link that navigates to a post
-    const link = event.target.closest('a[href*="/p/"], a[href*="/reel/"]');
+    const target = event.target;
+
+    // Save timestamps when clicking a link that navigates to a post
+    const link = target.closest('a[href*="/p/"], a[href*="/reel/"]');
     if (link) {
+      debug('Link click detected, saving timestamps');
       saveAllVideoTimestamps();
+      return;
+    }
+
+    // Also save when clicking in the action bar area of a post (likes, comments, share, save)
+    // These buttons can trigger navigation to the post modal
+    const article = target.closest('article');
+    if (article?.querySelector('video')) {
+      // Check if clicking on action buttons (comment icon, etc.)
+      const isActionButton = target.closest('svg, button, [role="button"]');
+      // Check for comment-related aria-labels
+      const commentButton = target.closest('[aria-label*="Comment" i], [aria-label*="comment" i]');
+
+      if (commentButton || isActionButton) {
+        debug('Action button click in video post, saving timestamps');
+        saveAllVideoTimestamps();
+      }
     }
   }
 
